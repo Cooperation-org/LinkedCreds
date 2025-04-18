@@ -110,7 +110,7 @@ async function handleStart() {
     userName: 'John Doe',
     sessionId,
     timestamp: new Date().toISOString(),
-    appOrigin: process.env.NEXT_PUBLIC_APP_ORIGIN || 'http://localhost:3000'
+    appOrigin: 'http://192.168.1.9:3000',
   }
 
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: `${EXPIRY_MINUTES}m` })
