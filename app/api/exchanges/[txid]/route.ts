@@ -1,86 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { LRUCache } from 'lru-cache'
 
-// In-memory store for VCs
-const exchanges = new Map<string, any>()
+const cache = new LRUCache<string, any>({
+  max: 100,
+  ttl: 1000 * 60 * 5 // 5 minutes
+})
 
-// Expiry config
-const EXPIRY_MINUTES = 5
-
-// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type'
 }
 
-function withCors(response: NextResponse) {
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    response.headers.set(key, value)
+export function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders
   })
-  return response
 }
 
-export async function OPTIONS() {
-  return withCors(new NextResponse(null, { status: 204 }))
-}
-
-// GET: Check if a resume VC was received for this txId
 export async function GET(
   request: NextRequest,
   { params }: { params: { txId: string } }
 ) {
   const { txId } = params
 
-  const session = exchanges.get(txId)
-
-  if (!session) {
-    return withCors(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+  if (!cache.has(txId)) {
+    return new NextResponse('Not Found', {
+      status: 404,
+      headers: corsHeaders
+    })
   }
 
-  if (Date.now() > session.expires) {
-    exchanges.delete(txId)
-    return withCors(NextResponse.json({ error: 'Session expired' }, { status: 410 }))
-  }
-
-  return withCors(NextResponse.json(session.data))
+  const data = cache.get(txId)
+  return NextResponse.json(JSON.parse(data), { headers: corsHeaders })
 }
 
-// POST: Either request resume VC (by posting empty object) or submit VC from wallet
 export async function POST(
   request: NextRequest,
   { params }: { params: { txId: string } }
 ) {
   const { txId } = params
-  const body = await request.json()
+  const body = await request.text()
 
-  // If wallet is initiating the session (empty POST), return VC request object
-  if (Object.keys(body).length === 0) {
-    const vprQuery = {
-      verifiablePresentationRequest: {
-        query: [
-          {
-            type: 'QueryByExample',
-            credentialQuery: {
-              reason: 'Please accept your resume as a Verifiable Credential.',
-              example: {
-                '@context': ['https://www.w3.org/2018/credentials/v1'],
-                type: ['VerifiableCredential']
-              }
-            }
-          }
-        ]
-      }
-    }
-
-    return withCors(NextResponse.json(vprQuery))
+  if (!body || body === '{}') {
+    return new NextResponse('Empty body', { status: 400, headers: corsHeaders })
   }
 
-  // Else store the incoming VC in memory
-  exchanges.set(txId, {
-    data: body,
-    created: Date.now(),
-    expires: Date.now() + EXPIRY_MINUTES * 60 * 1000
-  })
+  cache.set(txId, body)
 
-  return withCors(NextResponse.json({ status: 'received' }))
+  return NextResponse.json({ status: 'received' }, { headers: corsHeaders })
 }
