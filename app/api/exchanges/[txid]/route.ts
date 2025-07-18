@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { exchanges } from '../../../lib/exchanges' // Adjust path if needed
+import { exchanges } from '../../../lib/exchanges'
 
 // Set CORS headers
 const corsHeaders = {
@@ -56,26 +56,26 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { txId: string } }
+  { params }: { params: { txid: string } }
 ) {
-  const { txId } = params
-  console.log('🚀 ~ txId:', txId)
+  const { txid } = params
 
   try {
     const body = await request.json()
     const payload = JSON.stringify(body)
 
-    console.log('Incoming POST:', body)
+    console.log('Incoming POST:', body.appInstanceDid)
 
-    if (payload === '{}') {
+    if (body.appInstanceDid) {
       // Initial POST by the wallet, send the VP Request query
-      const query = vprQuery()
+      const query = vprQuery({ txid, appInstanceDid: body.appInstanceDid })
       return NextResponse.json(query, { headers: corsHeaders })
     } else {
+      console.log('No appInstanceDid found')
       // Requested credentials sent by the wallet
       // Store in the exchanges cache
-      console.log('Storing txId', txId, payload)
-      exchanges.set(txId, payload)
+      console.log('Storing txid', txid, payload)
+      exchanges.set(txid, payload)
       return NextResponse.json({ status: 'received' }, { headers: corsHeaders })
     }
   } catch (error: any) {
@@ -97,19 +97,35 @@ export async function POST(
 /**
  * Returns the Verifiable Presentation Request Query
  */
-function vprQuery() {
+function vprQuery({ txid, appInstanceDid }: { txid: string; appInstanceDid: string }) {
+  const pollingExchangeEndpoint = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api/exchanges/${txid}`
+
   return {
     verifiablePresentationRequest: {
+      interact: {
+        type: 'UnmediatedHttpPresentationService2021',
+        serviceEndpoint: pollingExchangeEndpoint
+      },
       query: [
         {
-          type: 'QueryByExample',
-          credentialQuery: {
+          type: 'ZcapQuery',
+          capabilityQuery: {
             reason:
-              'Please present your Verifiable Credential to complete the verification process.',
-            example: {
-              '@context': ['https://www.w3.org/2018/credentials/v1'],
-              type: ['VerifiableCredential']
-            }
+              'Linked Creds Author is requesting the permission to read and write to the Verifiable Credentials and VC Evidence collections.',
+            allowedAction: ['GET', 'PUT', 'POST'],
+            controller: appInstanceDid,
+            invocationTarget: [
+              {
+                type: 'urn:was:collection',
+                contentType: 'application/vc',
+                name: 'VerifiableCredential collection'
+              },
+              {
+                type: 'urn:was:collection',
+                contentType: 'application/octet-stream',
+                name: 'VC Evidence collection'
+              }
+            ]
           }
         }
       ]
