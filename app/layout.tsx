@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import ClientLayout from './ClientLayout'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { ClientWrapper } from './components/ClientWrapper'
 // test
 const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
@@ -95,7 +96,9 @@ export default function RootLayout({
         <link rel='icon' type='image/png' sizes='32x32' href='/icons/favicon-32x32.png' />
         <link rel='icon' type='image/png' sizes='16x16' href='/icons/favicon-16x16.png' />
       </head>
-      <ClientLayout>{children}</ClientLayout>
+      <ClientLayout>
+        <ClientWrapper>{children}</ClientWrapper>
+      </ClientLayout>
     </html>
   )
 }
