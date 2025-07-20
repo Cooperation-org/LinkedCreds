@@ -6,10 +6,12 @@ import {
   TextField,
   FormLabel,
   Typography,
-  CircularProgress
+  CircularProgress,
+  Button
 } from '@mui/material'
 import { useSession, signIn } from 'next-auth/react'
-import { importCredential } from '../utils/importCred'
+import { useRouter } from 'next/navigation'
+import VisibilityIcon from '@mui/icons-material/Visibility'
 
 const formLabelStyles = {
   fontFamily: 'Lato',
@@ -33,18 +35,62 @@ const textFieldInputProps = {
   }
 }
 
-interface FileResult {
+interface FetchResult {
   success: boolean
-  error?: string | undefined
-  fileId?: string | undefined
-  file?: { id: string | undefined }
+  error?: string
+  data?: any
+}
+
+// Function to extract form data from credential JSON
+const extractFormDataFromCredential = (credentialData: any) => {
+  const credentialSubject = credentialData.credentialSubject || {}
+  const credentialType = credentialSubject.credentialType || 'skill'
+
+  // Base form data
+  const formData: any = {
+    storageOption: 'Google Drive',
+    fullName: credentialSubject.name || '',
+    portfolio: credentialSubject.portfolio || [],
+    evidenceLink: credentialSubject.evidenceLink || '',
+    evidenceDescription: credentialSubject.evidenceDescription || '',
+    description: credentialSubject.evidenceDescription || ''
+  }
+
+  // Extract achievement data if present
+  const achievement = credentialSubject.achievement?.[0]
+  if (achievement) {
+    formData.credentialName = achievement.name || ''
+    formData.credentialDescription = achievement.description || ''
+    formData.persons = achievement.criteria?.narrative || ''
+  }
+
+  // Add duration if present
+  if (credentialSubject.duration) {
+    formData.credentialDuration = credentialSubject.duration
+    formData.duration = credentialSubject.duration
+  }
+
+  // Map credential type to form route
+  const typeToRoute: Record<string, string> = {
+    skill: '/skill',
+    volunteer: '/volunteer',
+    employment: '/role',
+    'performance-review': '/performance-review',
+    'identity-verification': '/identity-verification'
+  }
+
+  return {
+    formData,
+    route: typeToRoute[credentialType] || '/skill',
+    credentialType
+  }
 }
 
 // Separate status message component for cleaner organization
-function StatusMessage({ fileResult }: { fileResult: FileResult | null }) {
-  if (!fileResult) return null
+function StatusMessage({ fetchResult }: { fetchResult: FetchResult | null }) {
+  if (!fetchResult) return null
 
-  if (!fileResult.success || !fileResult.file) {
+  if (!fetchResult.success) {
     return (
       <Typography
         sx={{
@@ -53,7 +99,7 @@ function StatusMessage({ fileResult }: { fileResult: FileResult | null }) {
           textAlign: 'center'
         }}
       >
-        {fileResult.error || 'Unknown error'}
+        {fetchResult.error || 'Unknown error'}
       </Typography>
     )
   }
@@ -66,42 +112,150 @@ function StatusMessage({ fileResult }: { fileResult: FileResult | null }) {
         textAlign: 'center'
       }}
     >
-      Success! <Link href={`/view/${fileResult.file?.id}`}>View your credential</Link>
+      Success! Redirecting to form with pre-filled data...
     </Typography>
   )
 }
 
 function SimpleCredentialForm() {
-  const [fileResult, setFileResult] = useState<FileResult | null>(null)
+  const [fetchResult, setFetchResult] = useState<FetchResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [popupOpen, setPopupOpen] = useState(false)
+  const [url, setUrl] = useState('')
   const { data: session } = useSession()
+  const router = useRouter()
   const accessToken = session?.accessToken
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setIsLoading(true)
+  const handleUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const inputUrl = event.target.value
+    setUrl(inputUrl)
+  }
 
-    const formData = new FormData(event.currentTarget)
-    const credentialUrl = formData.get('credentialUrl') as string
+  const handleViewRawData = () => {
+    // Extract Google Drive file ID if it's a Google Drive URL
+    const extractGoogleDriveId = (url: string): string | null => {
+      const regex = /https:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)\/view/
+      const match = url.match(regex)
+      return match && match[1] ? match[1] : null
+    }
 
-    if (!accessToken) {
-      setFileResult({
+    const fileId = extractGoogleDriveId(url)
+    if (!fileId) {
+      // Show error or alert that no valid file ID was found
+      return
+    }
+    setPopupOpen(true)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!url.trim()) {
+      setFetchResult({
         success: false,
-        error: 'Please login first before attempting to import credential'
+        error: 'Please enter a valid URL'
       })
-      setIsLoading(false)
       return
     }
 
+    setIsLoading(true)
+    setFetchResult(null)
+
     try {
-      const result = await importCredential(credentialUrl, accessToken)
-      setFileResult(result)
-      setIsLoading(false)
-    } catch (error) {
-      setFileResult({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      let vcData
+
+      // Try direct fetch first
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          mode: 'cors'
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        vcData = await response.json()
+      } catch (corsError) {
+        console.log('Direct fetch failed, likely due to CORS. Trying backend proxy...')
+
+        // Use the backend server as a proxy
+        try {
+          const backendUrl =
+            process.env.REACT_APP_SERVER_URL || 'https://linkedcreds.allskillscount.org'
+          const proxyUrl = `${backendUrl}/api/proxy-credential?url=${encodeURIComponent(url)}`
+
+          const proxyResponse = await fetch(proxyUrl, {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (!proxyResponse.ok) {
+            throw new Error(`Backend proxy error! status: ${proxyResponse.status}`)
+          }
+
+          vcData = await proxyResponse.json()
+        } catch (backendError) {
+          console.log('Backend proxy failed. Trying public CORS proxy...')
+
+          // Fallback to public CORS proxy
+          try {
+            const publicProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`
+            const publicProxyResponse = await fetch(publicProxyUrl)
+
+            if (!publicProxyResponse.ok) {
+              throw new Error(`Public proxy error! status: ${publicProxyResponse.status}`)
+            }
+
+            const publicProxyData = await publicProxyResponse.json()
+            vcData = JSON.parse(publicProxyData.contents)
+          } catch (publicProxyError) {
+            // If all attempts fail, provide user-friendly error message
+            throw new Error(
+              "Unable to fetch data due to CORS restrictions. This usually happens when the credential server doesn't allow cross-origin requests. Please contact the credential provider or try a different URL."
+            )
+          }
+        }
+      }
+
+      // Console log the fetched data
+      console.log('Fetched credential data:', vcData)
+
+      // Extract form data and determine route
+      const { formData } = extractFormDataFromCredential(vcData)
+
+      // Store the form data in localStorage to pre-fill the form
+      localStorage.setItem('importedFormData', JSON.stringify(formData))
+
+      setFetchResult({
+        success: true,
+        data: vcData
       })
+
+      // Navigate to the credentialForm route after a short delay to show success message
+      setTimeout(() => {
+        router.push('/credentialForm')
+      }, 1500)
+    } catch (err) {
+      console.error('Error fetching credential data:', err)
+      let errorMessage = 'Failed to fetch credential data from URL'
+
+      if (err instanceof Error) {
+        errorMessage = err.message
+      }
+
+      setFetchResult({
+        success: false,
+        error: errorMessage
+      })
+    } finally {
       setIsLoading(false)
     }
   }
@@ -127,21 +281,61 @@ function SimpleCredentialForm() {
           </FormLabel>
           <TextField
             name='credentialUrl'
-            placeholder='https://...'
+            value={url}
+            onChange={handleUrlChange}
+            placeholder='https://example.com/credential.json'
             variant='outlined'
             sx={TextFieldStyles}
             aria-labelledby='credential-url-label'
             inputProps={textFieldInputProps}
             disabled={isLoading}
           />
+          <Button
+            type='submit'
+            variant='contained'
+            disabled={isLoading || !url.trim()}
+            sx={{
+              mt: 2,
+              borderRadius: '8px',
+              textTransform: 'none',
+              fontFamily: 'Lato',
+              backgroundColor: '#003FE0',
+              '&:hover': { backgroundColor: '#0056b3' }
+            }}
+          >
+            {isLoading ? 'Fetching...' : 'Import Credential Data'}
+          </Button>
           {isLoading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
               <CircularProgress size={24} />
             </Box>
           )}
-          {!isLoading && <StatusMessage fileResult={fileResult} />}
+          {!isLoading && <StatusMessage fetchResult={fetchResult} />}
         </Box>
       </form>
+
+      {/* Raw Credential Viewer Button - Only for Google Drive links */}
+      {url.includes('drive.google.com') && (
+        <Box
+          sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+        >
+          <Typography variant='body2' color='text.secondary'>
+            Or view raw credential data from the Google Drive link
+          </Typography>
+          <Button
+            variant='outlined'
+            startIcon={<VisibilityIcon />}
+            onClick={handleViewRawData}
+            sx={{
+              borderRadius: '8px',
+              textTransform: 'none',
+              fontFamily: 'Lato'
+            }}
+          >
+            View Raw Credential Data
+          </Button>
+        </Box>
+      )}
     </Box>
   )
 }

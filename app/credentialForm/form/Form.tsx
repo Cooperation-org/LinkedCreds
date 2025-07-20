@@ -108,8 +108,39 @@ const Form = ({ onStepChange }: any) => {
   useEffect(() => {
     onStepChange()
   }, [activeStep])
+
   useEffect(() => {
     handleFetchinguserSessions()
+  }, [])
+
+  // Check for imported form data from credential import
+  useEffect(() => {
+    const importedData = localStorage.getItem('importedFormData')
+    if (importedData) {
+      try {
+        const formData = JSON.parse(importedData)
+        console.log('Loading imported form data:', formData)
+
+        // Populate form fields with imported data
+        if (formData.fullName) setValue('fullName', formData.fullName)
+        if (formData.persons) setValue('persons', formData.persons)
+        if (formData.credentialName) setValue('credentialName', formData.credentialName)
+        if (formData.credentialDuration)
+          setValue('credentialDuration', formData.credentialDuration)
+        if (formData.credentialDescription)
+          setValue('credentialDescription', formData.credentialDescription)
+        if (formData.portfolio) setValue('portfolio', formData.portfolio)
+        if (formData.evidenceLink) setValue('evidenceLink', formData.evidenceLink)
+        if (formData.description) setValue('description', formData.description)
+        if (formData.storageOption) setValue('storageOption', formData.storageOption)
+
+        // Clear the imported data from localStorage after loading
+        localStorage.removeItem('importedFormData')
+      } catch (error) {
+        console.error('Failed to parse imported form data:', error)
+        localStorage.removeItem('importedFormData')
+      }
+    }
   }, [])
 
   const costumedHandleNextStep = async () => {

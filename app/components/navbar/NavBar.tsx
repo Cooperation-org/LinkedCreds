@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import HamburgerMenu from '../hamburgerMenu/HamburgerMenu'
 import { Logo } from '../../Assets/SVGs'
+import router from 'next/router'
 
 const NavBar = () => {
   const theme = useTheme()
@@ -13,6 +14,17 @@ const NavBar = () => {
   const { data: session } = useSession()
 
   const isActive = (path: string): boolean => pathname === path
+  const handleSignOut = async () => {
+    try {
+      await signOut({ redirect: false })
+      localStorage.clear()
+      router.push('/')
+    } catch (error) {
+      console.error('Sign out error:', error)
+      localStorage.clear()
+      router.push('/')
+    }
+  }
 
   return (
     <Box
@@ -243,10 +255,7 @@ const NavBar = () => {
               justifyContent: 'center'
             }}
             variant='actionButton'
-            onClick={() => {
-              signOut()
-              localStorage.clear()
-            }}
+            onClick={handleSignOut}
           >
             Sign Out
           </Button>
