@@ -12,6 +12,7 @@ import {
 import { useSession, signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import { saveRaw } from '../utils/googleDrive'
 
 const formLabelStyles = {
   fontFamily: 'Lato',
@@ -238,6 +239,17 @@ function SimpleCredentialForm() {
         success: true,
         data: vcData
       })
+
+      // Save the credential directly to Google Drive
+      if (accessToken) {
+        try {
+          const savedFile = await saveRaw(accessToken, vcData)
+          console.log('Credential saved to Google Drive:', savedFile)
+        } catch (saveError) {
+          console.error('Error saving to Google Drive:', saveError)
+          // Continue with form flow even if save fails
+        }
+      }
 
       // Navigate to the credentialForm route after a short delay to show success message
       setTimeout(() => {
