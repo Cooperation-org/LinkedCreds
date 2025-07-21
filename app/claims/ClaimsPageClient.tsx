@@ -112,7 +112,6 @@ const ViewClaimDialogContent: React.FC<ViewClaimDialogContentProps> = ({ fileID 
     </Box>
   )
 }
-
 const ClaimsPageClient: React.FC = () => {
   const [claims, setClaims] = useState<any[]>([])
   console.log(': claims', claims)
@@ -485,6 +484,7 @@ const ClaimsPageClient: React.FC = () => {
                   >
                     {isMobile ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+
                         <BlueBadge />
                         <Typography
                           variant='subtitle1'
