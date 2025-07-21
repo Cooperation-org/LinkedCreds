@@ -31,10 +31,37 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import DeleteIcon from '@mui/icons-material/Delete'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import RecommendIcon from '@mui/icons-material/Recommend'
 import useGoogleDrive from '../hooks/useGoogleDrive'
 import LoadingOverlay from '../components/Loading/LoadingOverlay'
 import ComprehensiveClaimDetails from '../view/[id]/ComprehensiveClaimDetails'
 import { updateClickRates } from '../firebase/firestore'
+
+// Import utility functions
+import {
+  getRandomBorderColor,
+  getTimeAgo,
+  getTimeDifference,
+  getCredentialName,
+  getCredentialType,
+  isValidClaim,
+  getClaimId,
+  generateLinkedInUrl
+} from '../utils/claimsHelpers'
+
+import {
+  getRecommendationName,
+  getRecommendationText,
+  isValidRecommendation,
+  getRecommendationId
+} from '../utils/recommendationHelpers'
+
+import {
+  tearDown,
+  getAllRecommendations,
+  getAllClaims,
+  safeDelete
+} from '../utils/driveOperations'
 
 import {
   SVGHeart,
@@ -57,56 +84,25 @@ interface Claim {
   achievementName: string
 }
 
+interface Recommendation {
+  [x: string]: any
+  id: string
+  credentialSubject: {
+    name: string
+    howKnow?: string
+    recommendationText: string
+    qualifications: string
+    explainAnswer?: string
+    portfolio?: Array<{ name: string; url: string }>
+  }
+  issuanceDate: string
+  expirationDate?: string
+}
+
 interface SnackbarState {
   open: boolean
   message: string
   severity: 'success' | 'error'
-}
-
-const borderColors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#22c55e', '#6366f1']
-
-const getRandomBorderColor = () => {
-  return borderColors[Math.floor(Math.random() * borderColors.length)]
-}
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-}
-
-const getTimeAgo = (isoDateString: string): string => {
-  const date = new Date(isoDateString)
-  if (isNaN(date.getTime())) {
-    return 'Invalid date'
-  }
-  return formatDate(date)
-}
-
-const getTimeDifference = (isoDateString: string): string => {
-  const date = new Date(isoDateString)
-  if (isNaN(date.getTime())) {
-    return '0 seconds'
-  }
-
-  const now = new Date()
-  const diffInMilliseconds = now.getTime() - date.getTime()
-  const diffInSeconds = Math.floor(diffInMilliseconds / 1000)
-  const diffInMinutes = Math.floor(diffInSeconds / 60)
-  const diffInHours = Math.floor(diffInMinutes / 60)
-  const diffInDays = Math.floor(diffInHours / 24)
-  const months =
-    (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth())
-
-  if (months > 0) return `${months} ${months === 1 ? 'month' : 'months'}`
-  if (diffInDays >= 30) return `${diffInDays} days`
-  if (diffInDays > 0) return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'}`
-  if (diffInHours > 0) return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'}`
-  if (diffInMinutes > 0)
-    return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'}`
-  return `${diffInSeconds} ${diffInSeconds === 1 ? 'second' : 'seconds'}`
 }
 
 const ViewClaimDialogContent: React.FC<ViewClaimDialogContentProps> = ({ fileID }) => {
@@ -117,186 +113,26 @@ const ViewClaimDialogContent: React.FC<ViewClaimDialogContentProps> = ({ fileID 
   )
 }
 
-const safeJSON = (v: string) => {
-  try {
-    const j = JSON.parse(v)
-    if (typeof j === 'string' && j.trim().startsWith('<')) return null
-    return j
-  } catch {
-    return null
-  }
-}
-
-const pickDriveIds = (url: string) => {
-  const re1 = /\/d\/([\w-]{10,})/
-  const re2 = /[?&]id=([\w-]{10,})/
-  const match = re1.exec(url) ?? re2.exec(url)
-  return match ? match[1] : null
-}
-
-const safeDelete = async (storage: any, fileId: string | null) => {
-  if (!fileId) return
-  try {
-    await storage.delete(fileId)
-  } catch (err: any) {
-    const msg: string = err?.message ?? ''
-    if (msg.includes('File not found') || msg.includes('Expected JSON')) return
-    throw err
-  }
-}
-
-const tearDown = async (storage: any, claim: any) => {
-  const fileId = claim.id?.id ?? ''
-  let parents
-  try {
-    parents = await storage.getFileParents(fileId)
-  } catch (err: any) {
-    const msg: string = err?.message ?? ''
-    if (!msg.includes('File not found')) throw err
-    parents = []
-  }
-  const folderId = parents?.[0] ?? null
-  let relationsId: string | null = null
-  if (folderId != null) {
-    try {
-      const kids = await storage.findFilesUnderFolder(folderId)
-      const r = kids.find((f: any) => f?.name === 'RELATIONS')
-      relationsId = r?.id ?? null
-    } catch {}
-  }
-  await safeDelete(storage, fileId)
-  await safeDelete(storage, relationsId)
-  const data = safeJSON(claim.id.data?.body ?? '') ?? claim
-  const urls: string[] = []
-  data?.credentialSubject?.portfolio?.forEach((p: any) => urls.push(p.url))
-  if (data?.credentialSubject?.evidenceLink)
-    urls.push(data.credentialSubject.evidenceLink)
-  data?.credentialSubject?.achievement?.forEach((a: any) => {
-    if (a.image?.id) urls.push(a.image.id)
-  })
-  const ids = urls.map(pickDriveIds).filter(Boolean) as string[]
-  await Promise.all(ids.map((i: string) => safeDelete(storage, i)))
-}
-
-const withResolversPolyfill = <T,>() => {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: any) => void
-
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-
-  return { promise, resolve, reject }
-}
-
-// Add helper function to safely get credential name with comprehensive error handling
-const getCredentialName = (claim: any): string => {
-  try {
-    // Safety check for claim object
-    if (!claim || typeof claim !== 'object') {
-      console.warn('Invalid claim object:', claim)
-      return 'Invalid Credential'
-    }
-
-    // Safety check for credentialSubject
-    if (!claim.credentialSubject || typeof claim.credentialSubject !== 'object') {
-      console.warn('Invalid credentialSubject:', claim.credentialSubject)
-      return 'Unknown Credential'
-    }
-
-    const { credentialSubject } = claim
-
-    // Handle new credential format (direct access)
-    if (credentialSubject.employeeName) {
-      return `Performance Review: ${credentialSubject.employeeJobTitle || 'Unknown Position'}`
-    }
-    if (credentialSubject.volunteerWork) {
-      return `Volunteer: ${credentialSubject.volunteerWork}`
-    }
-    if (credentialSubject.role) {
-      return `Employment: ${credentialSubject.role}`
-    }
-    if (credentialSubject.credentialName) {
-      return credentialSubject.credentialName
-    }
-
-    // Handle old credential format (achievement array)
-    if (
-      credentialSubject.achievement &&
-      Array.isArray(credentialSubject.achievement) &&
-      credentialSubject.achievement.length > 0 &&
-      credentialSubject.achievement[0] &&
-      credentialSubject.achievement[0].name
-    ) {
-      return credentialSubject.achievement[0].name
-    }
-
-    // Fallback
-    return 'Unknown Credential'
-  } catch (error) {
-    console.error('Error in getCredentialName:', error, claim)
-    return 'Error Loading Credential'
-  }
-}
-
-// Add helper function to safely get credential type with error handling
-const getCredentialType = (claim: any): string => {
-  try {
-    if (!claim || typeof claim !== 'object') {
-      return 'Unknown'
-    }
-
-    const types = Array.isArray(claim.type) ? claim.type : []
-    if (types.includes('EmploymentCredential')) return 'Employment'
-    if (types.includes('VolunteeringCredential')) return 'Volunteer'
-    if (types.includes('PerformanceReviewCredential')) return 'Performance Review'
-    return 'Skill'
-  } catch (error) {
-    console.error('Error in getCredentialType:', error, claim)
-    return 'Unknown'
-  }
-}
-
-// Helper function to validate claim object
-const isValidClaim = (claim: any): boolean => {
-  try {
-    return (
-      claim &&
-      typeof claim === 'object' &&
-      claim.id &&
-      claim.credentialSubject &&
-      typeof claim.credentialSubject === 'object'
-    )
-  } catch (error) {
-    console.error('Error validating claim:', error, claim)
-    return false
-  }
-}
-
-// Safe helper to get claim ID
-const getClaimId = (claim: any): string => {
-  try {
-    if (claim?.id?.id) return claim.id.id
-    if (claim?.id) return claim.id
-    return 'unknown-id'
-  } catch (error) {
-    console.error('Error getting claim ID:', error, claim)
-    return 'error-id'
-  }
-}
-
 const ClaimsPageClient: React.FC = () => {
   const [claims, setClaims] = useState<any[]>([])
   console.log(': claims', claims)
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  console.log(': recommendations', recommendations)
   const [loading, setLoading] = useState(true)
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true)
   const [initialFetchCompleted, setInitialFetchCompleted] = useState(false)
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
+  const [expandedRecommendation, setExpandedRecommendation] = useState<string | null>(
+    null
+  )
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
   const [selectedClaim, setSelectedClaim] = useState<any>(null)
+  const [selectedRecommendation, setSelectedRecommendation] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showOverlappingCards, setShowOverlappingCards] = useState(false)
   const [desktopMenuAnchorEl, setDesktopMenuAnchorEl] = useState<null | HTMLElement>(null)
+  const [recommendationMenuAnchorEl, setRecommendationMenuAnchorEl] =
+    useState<null | HTMLElement>(null)
   const [snackbar, setSnackbar] = useState<SnackbarState>({
     open: false,
     message: '',
@@ -313,6 +149,7 @@ const ClaimsPageClient: React.FC = () => {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
+  // Event handlers
   const handleRecommendationClick = async (claimId: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
     const url = `${window.location.origin}/askforrecommendation/${claimId}`
@@ -350,35 +187,11 @@ const ClaimsPageClient: React.FC = () => {
       console.error('Error in handleEmailShare:', error, claim)
     }
   }
+
   const handleDesktopMenuOpen = (event: React.MouseEvent<HTMLElement>, claim: any) => {
     event.stopPropagation()
     setDesktopMenuAnchorEl(event.currentTarget)
     setSelectedClaim(claim)
-  }
-
-  const generateLinkedInUrl = (claim: any) => {
-    try {
-      const claimId = getClaimId(claim)
-      const credentialName = getCredentialName(claim)
-      const issuanceDate = new Date(claim.issuanceDate || new Date())
-      const expirationDate = new Date(claim.expirationDate || new Date())
-      const baseLinkedInUrl = 'https://www.linkedin.com/profile/add'
-      const params = new URLSearchParams({
-        startTask: 'CERTIFICATION_NAME',
-        name: credentialName,
-        organizationName: 'LinkedTrust',
-        issueYear: issuanceDate.getFullYear().toString(),
-        issueMonth: (issuanceDate.getMonth() + 1).toString(),
-        expirationYear: expirationDate.getFullYear().toString(),
-        expirationMonth: (expirationDate.getMonth() + 1).toString(),
-        certUrl: `https://linkedcreds.allskillscount.org/view/${claimId}`,
-        certId: claimId
-      })
-      return `${baseLinkedInUrl}?${params.toString()}`
-    } catch (error) {
-      console.error('Error generating LinkedIn URL:', error, claim)
-      return 'https://www.linkedin.com/profile/add'
-    }
   }
 
   const handleLinkedInShare = (claim: any) => {
@@ -391,6 +204,77 @@ const ClaimsPageClient: React.FC = () => {
 
   const handleDesktopMenuClose = () => {
     setDesktopMenuAnchorEl(null)
+  }
+
+  const handleRecommendationMenuOpen = (
+    event: React.MouseEvent<HTMLElement>,
+    recommendation: any
+  ) => {
+    event.stopPropagation()
+    setRecommendationMenuAnchorEl(event.currentTarget)
+    setSelectedRecommendation(recommendation)
+  }
+
+  const handleRecommendationMenuClose = () => {
+    setRecommendationMenuAnchorEl(null)
+    setSelectedRecommendation(null)
+  }
+
+  const handleRecommendationCardClick = (recommendationId: string) => {
+    if (isMobile) {
+      setExpandedRecommendation(
+        expandedRecommendation === recommendationId ? null : recommendationId
+      )
+    }
+  }
+
+  const handleCopyRecommendationUrl = async (
+    recommendationId: string,
+    e?: React.MouseEvent
+  ) => {
+    e?.stopPropagation()
+    const url = `${window.location.origin}/recommendations/${recommendationId}`
+    await navigator.clipboard.writeText(url)
+    setSnackbar({
+      open: true,
+      message: 'Recommendation URL copied to clipboard!',
+      severity: 'success'
+    })
+  }
+
+  const handleDeleteRecommendation = async () => {
+    if (!selectedRecommendation || !storage) return
+    try {
+      setIsDeleting(true)
+      setShowOverlappingCards(true)
+
+      // Delete the recommendation file
+      const fileId = getRecommendationId(selectedRecommendation)
+      await safeDelete(storage, fileId)
+
+      // Update local state
+      setRecommendations(prevRecommendations =>
+        prevRecommendations.filter(rec => getRecommendationId(rec) !== fileId)
+      )
+
+      setSnackbar({
+        open: true,
+        message: 'Recommendation deleted successfully',
+        severity: 'success'
+      })
+
+      handleRecommendationMenuClose()
+    } catch (error) {
+      console.error('Error deleting recommendation:', error)
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete recommendation',
+        severity: 'error'
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowOverlappingCards(false)
+    }
   }
 
   const handleCardClick = (claimId: string) => {
@@ -428,101 +312,45 @@ const ClaimsPageClient: React.FC = () => {
     }
   }
 
-  // Helper function to check if a credential is a skill credential
-  const isSkillCredential = (claim: any): boolean => {
-    try {
-      // First validate the claim is valid
-      if (!isValidClaim(claim)) {
-        return false
-      }
+  // Data fetching hooks
+  const fetchClaims = useCallback(async () => {
+    if (!storage) return
 
-      // Check if it has the achievement array structure (skill credentials)
-      return (
-        claim.credentialSubject?.achievement &&
-        Array.isArray(claim.credentialSubject.achievement) &&
-        claim.credentialSubject.achievement.length > 0
-      )
-    } catch (error) {
-      console.error('Error in isSkillCredential:', error, claim)
-      return false
-    }
-  }
-
-  const getAllClaims = useCallback(async (): Promise<any> => {
-    let claimsData: any[] = []
-    const cachedVCs = localStorage.getItem('vcs')
-    if (cachedVCs) {
-      try {
-        const parsedVCs = JSON.parse(cachedVCs)
-        console.log('🚀 ~ getAllClaims ~ parsedVCs:', parsedVCs)
-        if (Array.isArray(parsedVCs) && parsedVCs.length > 0) {
-          console.log('Returning cached VCs from localStorage')
-          // Filter to only skill credentials
-          claimsData = parsedVCs.filter(isSkillCredential)
-        }
-      } catch (error) {
-        console.error('Error parsing cached VCs from localStorage:', error)
-      }
-    }
-    if (claimsData.length > 0) {
-      return claimsData
-    }
     try {
-      const driveFiles = await storage?.getAllFilesByType('VCs')
-      if (!driveFiles?.length) return []
-      const vcs = []
-      for (const file of driveFiles) {
-        try {
-          const content = JSON.parse(file?.data?.body)
-          if (content && '@context' in content) {
-            const credential = {
-              ...content,
-              id: file
-            }
-            // Only add skill credentials
-            if (isSkillCredential(credential)) {
-              vcs.push(credential)
-            }
-          }
-        } catch (error) {
-          console.error(`Error processing file ${file}:`, error)
-          continue
-        }
-      }
-      localStorage.setItem('vcs', JSON.stringify(vcs))
-      return vcs
+      setLoading(true)
+      const claimsData = await getAllClaims(storage)
+      setClaims(claimsData || [])
     } catch (error) {
-      console.error('Error fetching claims from drive:', error)
-      const fallback = localStorage.getItem('vcs')
-      if (fallback) {
-        // Filter cached fallback to only skill credentials
-        const parsed = JSON.parse(fallback)
-        return Array.isArray(parsed) ? parsed.filter(isSkillCredential) : []
-      }
-      return []
+      console.error('Error fetching claims:', error)
+      setClaims([])
+    } finally {
+      setLoading(false)
+      setInitialFetchCompleted(true)
+    }
+  }, [storage])
+
+  const fetchRecommendations = useCallback(async () => {
+    if (!storage) return
+
+    try {
+      setRecommendationsLoading(true)
+      const recommendationsData = await getAllRecommendations(storage)
+      setRecommendations(recommendationsData || [])
+    } catch (error) {
+      console.error('Error fetching recommendations:', error)
+      setRecommendations([])
+    } finally {
+      setRecommendationsLoading(false)
     }
   }, [storage])
 
   useEffect(() => {
-    const fetchClaims = async () => {
-      if (!storage) {
-        return // Don't fetch if storage is not available yet
-      }
-
-      try {
-        setLoading(true)
-        const claimsData = await getAllClaims()
-        setClaims(claimsData || [])
-      } catch (error) {
-        console.error('Error fetching claims:', error)
-        setClaims([])
-      } finally {
-        setLoading(false)
-        setInitialFetchCompleted(true)
-      }
-    }
     fetchClaims()
-  }, [getAllClaims, storage])
+  }, [fetchClaims])
+
+  useEffect(() => {
+    fetchRecommendations()
+  }, [fetchRecommendations])
 
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -904,6 +732,260 @@ const ClaimsPageClient: React.FC = () => {
         </Box>
       )}
 
+      {/* Recommendations Section */}
+      <Box sx={{ mt: 6 }}>
+        <Typography
+          variant={isMobile ? 'h5' : 'h4'}
+          sx={{
+            fontWeight: 'bold',
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}
+        >
+          <RecommendIcon sx={{ color: 'primary.main' }} />
+          My Recommendations
+        </Typography>
+
+        {recommendations.length === 0 && !recommendationsLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Typography variant='h6' color='text.secondary'>
+              You haven&apos;t sent any recommendations yet.
+            </Typography>
+          </Box>
+        )}
+
+        {recommendationsLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {recommendations
+              .filter(isValidRecommendation)
+              .map((recommendation, index) => {
+                try {
+                  const recommendationId = getRecommendationId(recommendation)
+                  return (
+                    <Paper
+                      key={recommendationId}
+                      onClick={() => handleRecommendationCardClick(recommendationId)}
+                      elevation={0}
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        cursor: isMobile ? 'pointer' : 'default',
+                        border: '3px solid',
+                        borderColor: isMobile ? getRandomBorderColor() : 'transparent',
+                        bgcolor: 'background.paper',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        {isMobile ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <RecommendIcon sx={{ color: '#22c55e' }} />
+                            <Typography
+                              variant='subtitle1'
+                              sx={{
+                                fontWeight: 600,
+                                textDecoration: 'underline',
+                                cursor: 'pointer'
+                              }}
+                              onClick={e => {
+                                e.stopPropagation()
+                                window.open(
+                                  `${window.location.origin}/recommendations/${recommendationId}`,
+                                  '_blank'
+                                )
+                              }}
+                            >
+                              {getRecommendationName(recommendation)}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ mt: '5px' }}>
+                                <RecommendIcon
+                                  sx={{ color: '#22c55e', fontSize: '1.5rem' }}
+                                />
+                              </Box>
+                              <Typography
+                                sx={{
+                                  fontWeight: 'bold',
+                                  fontSize: '1.25rem',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  window.open(
+                                    `${window.location.origin}/recommendations/${recommendationId}`,
+                                    '_blank'
+                                  )
+                                }}
+                              >
+                                {getRecommendationName(recommendation)}
+                              </Typography>
+                              <Typography
+                                sx={{
+                                  color: 'text.secondary',
+                                  fontWeight: 'bold',
+                                  fontSize: '1.25rem'
+                                }}
+                              >
+                                {getTimeAgo(
+                                  recommendation.issuanceDate || new Date().toISOString()
+                                )}
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ color: 'text.secondary' }}>
+                              Recommendation - {getRecommendationText(recommendation)} -{' '}
+                              {getTimeDifference(
+                                recommendation.issuanceDate || new Date().toISOString()
+                              )}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {isMobile ? (
+                          <IconButton
+                            size='small'
+                            onClick={e => {
+                              e.stopPropagation()
+                              handleRecommendationCardClick(recommendationId)
+                            }}
+                          >
+                            <KeyboardArrowDownIcon
+                              sx={{
+                                transform:
+                                  expandedRecommendation === recommendationId
+                                    ? 'rotate(180deg)'
+                                    : 'none',
+                                transition: 'transform 0.3s'
+                              }}
+                            />
+                          </IconButton>
+                        ) : (
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                border: '1px solid',
+                                borderColor: '#22c55e',
+                                borderRadius: '100px',
+                                overflow: 'hidden',
+                                bgcolor: '#f0fdf4'
+                              }}
+                            >
+                              <Button
+                                onClick={e =>
+                                  handleCopyRecommendationUrl(recommendationId, e)
+                                }
+                                startIcon={<ContentCopyIcon />}
+                                sx={{
+                                  bgcolor: '#dcfce7',
+                                  borderColor: '#dcfce7',
+                                  '&:hover': { bgcolor: '#bbf7d0' },
+                                  p: '2px 20px',
+                                  backgroundColor: '#dcfce7',
+                                  fontSize: '12px',
+                                  fontWeight: 'medium',
+                                  color: '#166534'
+                                }}
+                              >
+                                Copy URL
+                              </Button>
+                            </Box>
+                            <IconButton
+                              onClick={e =>
+                                handleRecommendationMenuOpen(e, recommendation)
+                              }
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          </Box>
+                        )}
+                      </Box>
+
+                      {isMobile && (
+                        <Collapse in={expandedRecommendation === recommendationId}>
+                          <Box
+                            sx={{
+                              mt: 2,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 1
+                            }}
+                          >
+                            <Button
+                              startIcon={<ContentCopyIcon />}
+                              endIcon={<SVGExport />}
+                              onClick={e =>
+                                handleCopyRecommendationUrl(recommendationId, e)
+                              }
+                              fullWidth
+                              sx={{
+                                justifyContent: 'flex-start',
+                                color: 'primary.main',
+                                '&:hover': { bgcolor: 'primary.50' }
+                              }}
+                            >
+                              Copy URL
+                            </Button>
+                            <Button
+                              startIcon={<DeleteIcon />}
+                              onClick={e => {
+                                e.stopPropagation()
+                                setSelectedRecommendation(recommendation)
+                                setOpenDeleteDialog(true)
+                              }}
+                              fullWidth
+                              sx={{
+                                justifyContent: 'flex-start',
+                                color: 'primary.main',
+                                '&:hover': { bgcolor: 'primary.50' }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </Box>
+                        </Collapse>
+                      )}
+                    </Paper>
+                  )
+                } catch (error) {
+                  console.error('Error rendering recommendation:', error, recommendation)
+                  return (
+                    <Paper
+                      key={`error-recommendation-${index}`}
+                      elevation={0}
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        bgcolor: '#ffebee',
+                        border: '1px solid #f44336'
+                      }}
+                    >
+                      <Typography color='error'>
+                        Error loading recommendation. Please refresh the page.
+                      </Typography>
+                    </Paper>
+                  )
+                }
+              })}
+          </Box>
+        )}
+      </Box>
+
       {!isMobile && (
         <Menu
           anchorEl={desktopMenuAnchorEl}
@@ -982,6 +1064,48 @@ const ClaimsPageClient: React.FC = () => {
           </MenuItem>
         </Menu>
       )}
+
+      {/* Recommendation Menu */}
+      {!isMobile && (
+        <Menu
+          anchorEl={recommendationMenuAnchorEl}
+          open={Boolean(recommendationMenuAnchorEl)}
+          onClose={handleRecommendationMenuClose}
+          PaperProps={{
+            sx: {
+              width: 320,
+              mt: 1,
+              borderRadius: 2
+            }
+          }}
+        >
+          <MenuItem
+            onClick={e => {
+              handleCopyRecommendationUrl(getRecommendationId(selectedRecommendation), e)
+              handleRecommendationMenuClose()
+            }}
+            sx={{ py: 1.5, gap: 2 }}
+          >
+            <ContentCopyIcon sx={{ color: '#22c55e' }} />
+            <Typography sx={{ textDecoration: 'underline', color: '#22c55e' }}>
+              Copy URL
+            </Typography>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              setOpenDeleteDialog(true)
+              handleRecommendationMenuClose()
+            }}
+            sx={{ py: 1.5, gap: 2 }}
+          >
+            <DeleteIcon sx={{ color: '#dc2626' }} />
+            <Typography sx={{ textDecoration: 'underline', color: '#dc2626' }}>
+              Delete
+            </Typography>
+          </MenuItem>
+        </Menu>
+      )}
+
       <Dialog
         open={viewClaimDialogOpen}
         onClose={handleCloseViewClaimDialog}
@@ -1024,6 +1148,7 @@ const ClaimsPageClient: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Modified Delete Dialog to handle both claims and recommendations */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -1061,7 +1186,9 @@ const ClaimsPageClient: React.FC = () => {
             Cancel
           </Button>
           <Button
-            onClick={handleConfirmDelete}
+            onClick={
+              selectedRecommendation ? handleDeleteRecommendation : handleConfirmDelete
+            }
             variant='contained'
             disabled={isDeleting}
             fullWidth
