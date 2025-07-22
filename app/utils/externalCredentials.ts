@@ -2,6 +2,55 @@
  * Utility functions for handling external credentials
  */
 
+/**
+ * Extract the credential name from various possible locations
+ * This matches the logic used in GenericCredentialViewer
+ */
+export function getCredentialName(credential: any): string {
+  if (!credential) return 'Unnamed Credential'
+  
+  // Check root level name
+  if (credential.name && typeof credential.name === 'string') {
+    return credential.name
+  }
+  
+  // Check credentialSubject.achievement (array format - native)
+  const subject = credential.credentialSubject || {}
+  if (Array.isArray(subject.achievement) && subject.achievement[0]?.name) {
+    return subject.achievement[0].name
+  }
+  
+  // Check credentialSubject.achievement (object format - OpenBadges)
+  if (subject.achievement && !Array.isArray(subject.achievement) && subject.achievement.name) {
+    return subject.achievement.name
+  }
+  
+  // Check OpenBadges badge field
+  if (credential.badge?.name) {
+    return credential.badge.name
+  }
+  
+  // Check credentialSubject.credentialName (some formats use this)
+  if (subject.credentialName) {
+    return subject.credentialName
+  }
+  
+  // Check for degree/certificate specific fields
+  if (subject.degree?.name) {
+    return subject.degree.name
+  }
+  
+  // Use credential type as last resort before unnamed
+  const types = Array.isArray(credential.type) ? credential.type : [credential.type]
+  const meaningfulType = types.find((t: string) => t !== 'VerifiableCredential' && t !== 'VerifiablePresentation')
+  if (meaningfulType) {
+    // Convert CamelCase to Title Case
+    return meaningfulType.replace(/([A-Z])/g, ' $1').trim()
+  }
+  
+  return 'Unnamed Credential'
+}
+
 export interface ExternalCredentialInfo {
   isExternal: boolean
   provider?: string
