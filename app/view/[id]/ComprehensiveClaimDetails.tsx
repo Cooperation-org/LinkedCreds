@@ -27,6 +27,7 @@ import { GoogleDriveStorage } from '@cooperation/vc-storage'
 import EvidencePreview from './EvidencePreview'
 import { getAccessToken, getFileViaFirebase } from '../../firebase/storage'
 import QRCode from 'qrcode'
+import GenericCredentialViewer from './GenericCredentialViewer'
 // Define types
 interface Portfolio {
   name: string
@@ -234,6 +235,45 @@ const ComprehensiveClaimDetails: React.FC<ComprehensiveClaimDetailsProps> = ({
     ? credentialSubject.portfolio.filter(item => item && item.name && item.url)
     : []
   const hasValidEvidence = validPortfolio.length > 0
+  
+  // Check if this is an external credential
+  const isExternalCredential = () => {
+    if (!claimDetail) return false
+    
+    const subject = claimDetail.credentialSubject || {}
+    
+    // Check if it has our native fields that our viewer expects
+    // Our native schema should have:
+    // - credentialSubject.name (person's name)
+    // - credentialSubject.credentialType (skill/volunteer/employment/etc)
+    // - credentialSubject.achievement as an array
+    
+    const hasNativeName = typeof subject.name === 'string'
+    const hasCredentialType = typeof subject.credentialType === 'string'
+    const hasArrayAchievement = Array.isArray(subject.achievement)
+    
+    // If it has all our expected fields, it's native
+    if (hasNativeName && hasCredentialType && hasArrayAchievement) {
+      return false
+    }
+    
+    // Otherwise, it's external
+    return true
+  }
+  
+  // If it's an external credential, use the generic viewer
+  if (isExternalCredential()) {
+    return (
+      <Container sx={{ maxWidth: '800px' }}>
+        <GenericCredentialViewer 
+          credential={claimDetail}
+          qrCodeDataUrl={qrCodeDataUrl}
+          fileID={fileID}
+        />
+      </Container>
+    )
+  }
+  
   return (
     <Container sx={{ maxWidth: '800px' }}>
       {claimDetail && (
