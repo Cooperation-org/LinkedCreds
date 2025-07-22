@@ -9,6 +9,15 @@ const nextConfig = {
         pathname: '/download/**'
       }
     ]
+  },
+  webpack: (config, { isServer }) => {
+    // Handle rdf-canonize-native module issue
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      'rdf-canonize-native': false
+    }
+    
+    return config
   }
 }
 

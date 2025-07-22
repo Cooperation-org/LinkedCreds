@@ -460,7 +460,7 @@ function SimpleCredentialForm() {
           • GitHub raw files (raw.githubusercontent.com)<br/>
           • Direct JSON endpoints with CORS headers<br/>
           • Google Drive direct download links<br/>
-          • Most credential issuers' public endpoints
+          • Most credential issuers&apos; public endpoints
         </Typography>
       </Box>
 
