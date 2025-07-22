@@ -12,6 +12,7 @@ import {
 import { useSession, signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import { saveRaw } from '../utils/googleDrive'
 import { 
@@ -20,6 +21,7 @@ import {
   getFetchStrategy,
   mightHaveCORSIssues 
 } from '../utils/externalCredentials'
+
 
 const formLabelStyles = {
   fontFamily: 'Lato',
@@ -371,7 +373,6 @@ function SimpleCredentialForm() {
         setTimeout(() => {
           router.push('/credentialForm')
         }, 1500)
-      }
     } catch (err) {
       console.error('Error fetching credential data:', err)
       let errorMessage = 'Failed to fetch credential data from URL'
