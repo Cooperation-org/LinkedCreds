@@ -373,6 +373,7 @@ function SimpleCredentialForm() {
         setTimeout(() => {
           router.push('/credentialForm')
         }, 1500)
+      }
     } catch (err) {
       console.error('Error fetching credential data:', err)
       let errorMessage = 'Failed to fetch credential data from URL'
