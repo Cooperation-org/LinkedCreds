@@ -40,7 +40,8 @@ interface Achievement {
   image?: { id: string }
 }
 interface CredentialSubject {
-  name: string
+  name?: string  // Made optional since external creds might not have it
+  credentialType?: string  // Added as optional for native detection
   achievement?: Achievement[]
   duration?: string
   portfolio?: Portfolio[]
@@ -252,7 +253,8 @@ const ComprehensiveClaimDetails: React.FC<ComprehensiveClaimDetailsProps> = ({
     const hasCredentialType = typeof subject.credentialType === 'string'
     const hasArrayAchievement = Array.isArray(subject.achievement)
     
-    // If it has all our expected fields, it's native
+    // ALL THREE must be present for it to be native
+    // If any are missing, it's external
     if (hasNativeName && hasCredentialType && hasArrayAchievement) {
       return false
     }
