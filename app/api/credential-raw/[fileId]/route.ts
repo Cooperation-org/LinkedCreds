@@ -14,7 +14,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { fileId: string } }
 ) {
-  const { fileId } = params
+  const fileId = params.fileId
   console.log('🚀 ~ fileId:', fileId)
 
   if (!fileId) {

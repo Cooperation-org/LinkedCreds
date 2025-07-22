@@ -68,16 +68,16 @@ export function canDisplayNatively(credentialData: any): boolean {
   const subject = credentialData.credentialSubject || {}
   
   // Check if it has our native fields that our viewer expects
-  // Our native schema should have:
+  // Our native schema requires ALL of these:
   // - credentialSubject.name (person's name)
   // - credentialSubject.credentialType (skill/volunteer/employment/etc)
   // - credentialSubject.achievement as an array
   
-  const hasNativeName = typeof subject.name === 'string'
-  const hasCredentialType = typeof subject.credentialType === 'string'
-  const hasArrayAchievement = Array.isArray(subject.achievement)
+  const hasNativeName = typeof subject.name === 'string' && subject.name.length > 0
+  const hasCredentialType = typeof subject.credentialType === 'string' && subject.credentialType.length > 0
+  const hasArrayAchievement = Array.isArray(subject.achievement) && subject.achievement.length > 0
   
-  // If it has all our expected fields, we can display it natively
+  // ALL THREE must be present for native display
   return hasNativeName && hasCredentialType && hasArrayAchievement
 }
 
