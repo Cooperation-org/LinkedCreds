@@ -14,6 +14,8 @@ import { useRouter } from 'next/navigation'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import { GoogleDriveStorage, saveToGoogleDrive } from '@cooperation/vc-storage'
+import { storeFileTokens } from '../firebase/storage'
 import { saveRaw } from '../utils/googleDrive'
 import { 
   analyzeCredential, 
@@ -154,6 +156,7 @@ function SimpleCredentialForm() {
   const { data: session } = useSession()
   const router = useRouter()
   const accessToken = session?.accessToken
+  const refreshToken = session?.refreshToken
 
   const handleUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const inputUrl = event.target.value
@@ -313,9 +316,24 @@ function SimpleCredentialForm() {
             if (vcData.type?.includes('VerifiablePresentation') && vcData.verifiableCredential?.[0]) {
               credentialToSave = vcData.verifiableCredential[0]
             }
-            
-            const savedFile = await saveRaw(accessToken, credentialToSave)
-            console.log('External credential saved to Google Drive:', savedFile)
+
+            console.log('trying to save ext credential: ', credentialToSave)
+            const storage = new GoogleDriveStorage(accessToken)
+            const savedFile = await saveToGoogleDrive({storage, data:credentialToSave, type:'VC'})
+            try{
+                await storeFileTokens({
+                    googleFileId: savedFile.id,
+                    tokens: {
+                       accessToken: accessToken,
+                       refreshToken: refreshToken as string
+                    }
+                })
+                console.log('External credential saved to Google Drive:', savedFile)
+            } catch {
+              console.log("Cannot seem to save the file or the tokens")
+            }
+ 
+            //const savedFile = await saveRaw(accessToken, credentialToSave)
             
             setFetchResult({
               success: true,
@@ -361,7 +379,23 @@ function SimpleCredentialForm() {
         // Save the credential directly to Google Drive
         if (accessToken) {
           try {
-            const savedFile = await saveRaw(accessToken, vcData)
+
+            const storage = new GoogleDriveStorage(accessToken)
+            const savedFile = await saveToGoogleDrive({storage, data:vcData, type:'VC'})
+            try{
+                await storeFileTokens({
+                    googleFileId: savedFile.id,
+                    tokens: {
+                       accessToken: accessToken,
+                       refreshToken: refreshToken as string
+                    }
+                })
+                console.log('External credential saved to Google Drive:', savedFile)
+            } catch {
+              console.log("Cannot seem to save the file or the tokens")
+            }
+
+            //const savedFile = await saveRaw(accessToken, vcData)
             console.log('Credential saved to Google Drive:', savedFile)
           } catch (saveError) {
             console.error('Error saving to Google Drive:', saveError)
