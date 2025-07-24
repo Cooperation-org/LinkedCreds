@@ -254,11 +254,15 @@ const Form = ({ onStepChange }: any) => {
   return (
     <Box
       sx={{
-        m: { xs: '50px auto', sm: '50px auto', md: '120px auto' },
+        m: { xs: '24px auto', sm: '40px auto', md: '120px auto' },
         display: 'flex',
-        gap: '90px',
-        alignItems: 'flex-start',
-        justifyContent: 'center'
+        flexDirection: { xs: 'column', md: 'row' },
+        gap: { xs: 3, md: '90px' },
+        alignItems: { xs: 'stretch', md: 'flex-start' },
+        justifyContent: 'center',
+        width: '100%',
+        maxWidth: { xs: '100%', md: '1500px' },
+        px: { xs: 1, sm: 2, md: 0 }
       }}
     >
       <form
@@ -268,11 +272,12 @@ const Form = ({ onStepChange }: any) => {
           gap: '30px',
           alignItems: 'center',
           justifyItems: 'center',
-          padding: ' 20px 20px 20px',
+          padding: '20px 8px 20px',
           overflow: 'auto',
           width: '100%',
           maxWidth: '720px',
-          backgroundColor: '#FFF'
+          backgroundColor: '#FFF',
+          boxSizing: 'border-box'
         }}
         onSubmit={handleFormSubmit}
       >
@@ -392,7 +397,15 @@ const Form = ({ onStepChange }: any) => {
       </form>
 
       {activeStep >= 1 && activeStep <= 4 && (
-        <CredentialTracker formData={watch()} selectedFiles={selectedFiles} />
+        <Box
+          sx={{
+            width: { xs: '100%', md: '420px' },
+            mt: { xs: 4, md: 0 },
+            alignSelf: { xs: 'stretch', md: 'auto' }
+          }}
+        >
+          <CredentialTracker formData={watch()} selectedFiles={selectedFiles} />
+        </Box>
       )}
     </Box>
   )
