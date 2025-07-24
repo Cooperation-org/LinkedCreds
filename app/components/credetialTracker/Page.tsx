@@ -86,7 +86,7 @@ const generateVideoThumbnail = (videoUrl: string): Promise<string> => {
 const HeaderContainer = styled(Paper)(({ theme }) => ({
   width: '100%',
   maxWidth: '720px',
-  padding: '30px',
+  padding: theme.breakpoints.down('sm') ? '18px' : '30px',
   borderRadius: '20px 20px 0 0',
   borderLeft: '1px solid #d1e4ff',
   borderRight: '1px solid #d1e4ff',
@@ -98,7 +98,7 @@ const HeaderContainer = styled(Paper)(({ theme }) => ({
 const MainContentContainer = styled(Box)(({ theme }) => ({
   width: '100%',
   maxWidth: '720px',
-  padding: '45px 30px',
+  padding: theme.breakpoints.down('sm') ? '24px 8px' : '45px 30px',
   backgroundColor: '#87abe4',
   borderRadius: '0 0 20px 20px',
   borderTop: '1px solid #d1e4ff',
@@ -108,7 +108,7 @@ const MainContentContainer = styled(Box)(({ theme }) => ({
 }))
 
 const SkillCard = styled(Card)(({ theme }) => ({
-  padding: '15px 30px',
+  padding: theme.breakpoints.down('sm') ? '10px 8px' : '15px 30px',
   backgroundColor: '#fff',
   borderRadius: '10px',
   border: '1px solid #003fe0',
@@ -117,7 +117,7 @@ const SkillCard = styled(Card)(({ theme }) => ({
 
 const FieldLabel = styled(Typography)(({ theme }) => ({
   fontFamily: 'Inter',
-  fontSize: '16px',
+  fontSize: theme.breakpoints.down('sm') ? '14px' : '16px',
   fontWeight: 700,
   lineHeight: '24px',
   color: '#000e40',
@@ -126,7 +126,7 @@ const FieldLabel = styled(Typography)(({ theme }) => ({
 
 const FieldValue = styled(Typography)(({ theme }) => ({
   fontFamily: 'Inter',
-  fontSize: '16px',
+  fontSize: theme.breakpoints.down('sm') ? '14px' : '16px',
   fontWeight: 400,
   lineHeight: '24px',
   color: '#6b7280',
@@ -137,7 +137,7 @@ const FieldValue = styled(Typography)(({ theme }) => ({
 }))
 
 const MediaContainer = styled(Box)(({ theme }) => ({
-  height: '180px',
+  height: theme.breakpoints.down('sm') ? '120px' : '180px',
   width: '100%',
   display: 'flex',
   justifyContent: 'center',
@@ -145,9 +145,9 @@ const MediaContainer = styled(Box)(({ theme }) => ({
   flexDirection: 'column'
 }))
 
-const Media = styled(Box)<{ hasImage?: boolean }>(({ hasImage }) => ({
-  width: '160.506px',
-  height: '153.129px',
+const Media = styled(Box)<{ hasImage?: boolean }>(({ hasImage, theme }) => ({
+  width: theme.breakpoints.down('sm') ? '100px' : '160.506px',
+  height: theme.breakpoints.down('sm') ? '90px' : '153.129px',
   position: 'relative',
   backgroundImage: hasImage ? 'none' : 'url(/images/SkillMedia.svg)',
   backgroundSize: '100% 100%',
@@ -233,13 +233,14 @@ const CredentialTracker: React.FC<CredentialTrackerProps> = ({
   const featuredFile = selectedFiles.find(f => f.isFeatured)
 
   return (
-    <Box sx={{ p: 0, width: '100%', maxWidth: '720px' }}>
+    <Box sx={{ p: 0, width: '100%', maxWidth: { xs: '100%', md: '720px' } }}>
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
           width: '100%',
-          margin: '0 auto'
+          margin: '0 auto',
+          boxSizing: 'border-box'
         }}
       >
         {/* Header Section */}
