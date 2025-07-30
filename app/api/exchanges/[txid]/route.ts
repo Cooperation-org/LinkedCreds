@@ -123,18 +123,11 @@ function vprQuery({ txId, appInstanceDid }: { txId: string; appInstanceDid: stri
               'Linked Creds Author is requesting the permission to read and write to the Verifiable Credentials and VC Evidence collections.',
             allowedAction: ['GET', 'PUT', 'POST'],
             controller: appInstanceDid,
-            invocationTarget: [
-              {
-                type: 'urn:was:collection',
-                contentType: 'application/vc',
-                name: 'VerifiableCredential collection'
-              },
-              {
-                type: 'urn:was:collection',
-                contentType: 'application/octet-stream',
-                name: 'VC Evidence collection'
-              }
-            ]
+            invocationTarget: {
+              type: 'urn:was:collection',
+              contentType: 'application/vc',
+              name: 'VerifiableCredential collection'
+            }
           }
         }
       ]
