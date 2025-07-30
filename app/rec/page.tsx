@@ -221,7 +221,7 @@ const Page = () => {
         if (!vcId || !storage || !recId) return
 
         const vcFolderId = await storage.getFileParents(vcId)
-        const files = await storage.findFilesUnderFolder(vcFolderId)
+        const files = await storage.findFolderFiles(vcFolderId)
         const relationsFile = files.find((f: any) => f.name === 'RELATIONS')
 
         if (relationsFile) {
@@ -344,7 +344,7 @@ const Page = () => {
         return
       }
       const vcFolderId = await storage.getFileParents(vcId)
-      const files = await storage.findFilesUnderFolder(vcFolderId)
+      const files = await storage.findFolderFiles(vcFolderId)
       const relationsFile = files.find((f: any) => f.name === 'RELATIONS')
 
       await storage.updateRelationsFile({

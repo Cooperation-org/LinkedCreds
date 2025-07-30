@@ -10,7 +10,7 @@
     "format": "prettier --write 'app/**/*.{js,ts,tsx,jsx,json}'"
   },
   "dependencies": {
-    "@cooperation/vc-storage": "^1.0.34",
+    "@cooperation/vc-storage": "^1.0.40",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@mui/icons-material": "^5.15.14",

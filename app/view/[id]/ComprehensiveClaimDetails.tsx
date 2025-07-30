@@ -166,7 +166,7 @@ const ComprehensiveClaimDetails: React.FC<ComprehensiveClaimDetailsProps> = ({
         const shouldFetchRecommendations = isView || !!propFileID
         if (shouldFetchRecommendations) {
           const vcFolderId = await uncachedStorage.getFileParents(fileID)
-          const files = await uncachedStorage.findFilesUnderFolder(vcFolderId)
+          const files = await uncachedStorage.findFolderFiles(vcFolderId)
           const relationsFile = files.find((f: any) => f.name === 'RELATIONS')
 
           if (relationsFile) {

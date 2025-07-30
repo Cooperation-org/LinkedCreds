@@ -49,7 +49,7 @@ export const tearDown = async (storage: any, claim: any) => {
   let relationsId: string | null = null
   if (folderId != null) {
     try {
-      const kids = await storage.findFilesUnderFolder(folderId)
+      const kids = await storage.findFolderFiles(folderId)
       const r = kids.find((f: any) => f?.name === 'RELATIONS')
       relationsId = r?.id ?? null
     } catch {}
