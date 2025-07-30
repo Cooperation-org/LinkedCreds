@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exchanges } from '../../../lib/exchanges'
-
-const APP_BASE_URL = 'http://localhost:3000'
+import { APP_BASE_URL } from '../../../../app.config'
 
 // Set CORS headers
 const corsHeaders = {
