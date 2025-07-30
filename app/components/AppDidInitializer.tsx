@@ -1,9 +1,8 @@
-// This is a client component that gets the app DID and stores it in the context
 'use client'
-import { ReactNode, useEffect } from 'react'
+import { useEffect } from 'react'
 import { getOrCreateAppInstanceDid } from '@cooperation/vc-storage'
 
-export function ClientWrapper({ children }: { children: ReactNode }) {
+export default function AppDidInitializer() {
   useEffect(() => {
     ;(async () => {
       const did = await getOrCreateAppInstanceDid()
@@ -11,5 +10,5 @@ export function ClientWrapper({ children }: { children: ReactNode }) {
     })()
   }, [])
 
-  return <>{children}</>
+  return null
 }

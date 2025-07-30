@@ -8,6 +8,7 @@ import { StepProvider } from './credentialForm/form/StepContext'
 import { usePathname } from 'next/navigation'
 import background from './Assets/Images/Background.svg'
 import Providers from './components/signing/Providers'
+import AppDidInitializer from './components/AppDidInitializer'
 
 export default function ClientLayout({
   children
@@ -49,6 +50,7 @@ export default function ClientLayout({
                     : '#F0F4F8'
               }}
             >
+              <AppDidInitializer />
               {children}
             </Box>
             <Footer />
