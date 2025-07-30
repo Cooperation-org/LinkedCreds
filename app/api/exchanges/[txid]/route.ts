@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exchanges } from '../../../lib/exchanges'
 
+const APP_BASE_URL = 'http://localhost:3000'
+
 // Set CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,49 +58,57 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { txid: string } }
+  { params }: { params: { txId: string } }
 ) {
-  const { txid } = params
+  const { txId } = params;
+  console.log('[POST] Incoming txId:', txId);
 
   try {
-    const body = await request.json()
-    const payload = JSON.stringify(body)
+    // Try to parse body — gracefully handle empty body
+    const body = await request.json().catch(() => ({}));
+    console.log('[POST] Parsed body:', body);
 
-    console.log('Incoming POST:', body.appInstanceDid)
+    const appInstanceDid = body.appInstanceDid;
+    const existing = exchanges.get(txId);
 
-    if (body.appInstanceDid) {
-      // Initial POST by the wallet, send the VP Request query
-      const query = vprQuery({ txid, appInstanceDid: body.appInstanceDid })
-      return NextResponse.json(query, { headers: corsHeaders })
-    } else {
-      console.log('No appInstanceDid found')
-      // Requested credentials sent by the wallet
-      // Store in the exchanges cache
-      console.log('Storing txid', txid, payload)
-      exchanges.set(txid, payload)
-      return NextResponse.json({ status: 'received' }, { headers: corsHeaders })
+    if (appInstanceDid) {
+      // Initial POST from the web app
+      console.log('[POST] Received appInstanceDid from resume-author:', appInstanceDid);
+      exchanges.set(txId, JSON.stringify({ appInstanceDid }));
+      return NextResponse.json(
+        { status: '✅ App DID received, waiting for wallet to connect' },
+        { headers: corsHeaders }
+      );
     }
-  } catch (error: any) {
-    console.error(error)
 
+    if (existing) {
+      // LCW second POST with empty body — retrieve session and return VPR
+      const { appInstanceDid } = JSON.parse(existing);
+      console.log('[POST] LCW connected, found stored appInstanceDid:', appInstanceDid);
+
+      const query = vprQuery({ txId, appInstanceDid });
+      return NextResponse.json(query, { headers: corsHeaders });
+    }
+
+    // Neither new DID nor existing session
+    console.warn('[POST] ❌ Missing appInstanceDid and no cached session found for txId.');
     return NextResponse.json(
-      {
-        status: error.statusText || 'Invalid request',
-        error: error.message
-      },
-      {
-        status: error.statusCode || 400,
-        headers: corsHeaders
-      }
-    )
+      { error: 'Missing appInstanceDid and no session initialized' },
+      { status: 400, headers: corsHeaders }
+    );
+
+  } catch (error: any) {
+    console.error('[POST] ❌ Error handling request:', error);
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400, headers: corsHeaders });
   }
 }
+
 
 /**
  * Returns the Verifiable Presentation Request Query
  */
-function vprQuery({ txid, appInstanceDid }: { txid: string; appInstanceDid: string }) {
-  const pollingExchangeEndpoint = `${process.env.NEXT_PUBLIC_APP_BASE_URL}/api/exchanges/${txid}`
+function vprQuery({ txId, appInstanceDid }: { txId: string; appInstanceDid: string }) {
+  const pollingExchangeEndpoint = `${APP_BASE_URL}/api/exchanges/${txId}`
 
   return {
     verifiablePresentationRequest: {
