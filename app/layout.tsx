@@ -3,8 +3,7 @@ import { Metadata } from 'next'
 import ClientLayout from './ClientLayout'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { ClientWrapper } from './components/ClientWrapper'
-// test
+
 const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'LinkedCreds',
@@ -97,7 +96,7 @@ export default function RootLayout({
         <link rel='icon' type='image/png' sizes='16x16' href='/icons/favicon-16x16.png' />
       </head>
       <ClientLayout>
-        <ClientWrapper>{children}</ClientWrapper>
+        {children}
       </ClientLayout>
     </html>
   )
