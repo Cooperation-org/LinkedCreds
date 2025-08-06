@@ -69,6 +69,7 @@ export async function POST(
 
     const appInstanceDid = body.appInstanceDid;
     const existing = exchanges.get(txId);
+    console.log('🚀 ~ POST ~ existing:', existing)
 
     if (appInstanceDid) {
       // Initial POST from the web app
@@ -81,13 +82,29 @@ export async function POST(
     }
 
     if (existing) {
-      // LCW second POST with empty body — retrieve session and return VPR
-      const { appInstanceDid } = JSON.parse(existing);
-      console.log('[POST] LCW connected, found stored appInstanceDid:', appInstanceDid);
-
-      const query = vprQuery({ txId, appInstanceDid });
+      // LCW POSTed after resume-author initialized session
+      const parsed = JSON.parse(existing);
+    
+      if (body.zcap) {
+        // Final step: LCW is responding with the ZCAP
+        console.log('[POST] ✅ Received zcap from LCW:', body.zcap);
+    
+        exchanges.set(txId, JSON.stringify({
+          ...parsed,
+          zcap: body.zcap
+        }));
+    
+        return NextResponse.json(
+          { status: '✅ ZCAP received' },
+          { headers: corsHeaders }
+        );
+      }
+    
+      // Otherwise, return VPR to LCW
+      const query = vprQuery({ txId, appInstanceDid: parsed.appInstanceDid });
       return NextResponse.json(query, { headers: corsHeaders });
     }
+    
 
     // Neither new DID nor existing session
     console.warn('[POST] ❌ Missing appInstanceDid and no cached session found for txId.');
