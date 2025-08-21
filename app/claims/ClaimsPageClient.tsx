@@ -484,7 +484,6 @@ const ClaimsPageClient: React.FC = () => {
                   >
                     {isMobile ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-
                         <BlueBadge />
                         <Typography
                           variant='subtitle1'
@@ -495,10 +494,7 @@ const ClaimsPageClient: React.FC = () => {
                           }}
                           onClick={e => {
                             e.stopPropagation()
-                            window.open(
-                              `${window.location.origin}/view/${claimId}`,
-                              '_blank'
-                            )
+                            window.open(`${window.location.origin}/view/${claimId}`)
                           }}
                         >
                           {getCredentialName(claim)}
@@ -519,10 +515,7 @@ const ClaimsPageClient: React.FC = () => {
                             }}
                             onClick={e => {
                               e.stopPropagation()
-                              window.open(
-                                `${window.location.origin}/view/${claimId}`,
-                                '_blank'
-                              )
+                              window.open(`${window.location.origin}/view/${claimId}`)
                             }}
                           >
                             {getCredentialName(claim)}
@@ -802,8 +795,7 @@ const ClaimsPageClient: React.FC = () => {
                               onClick={e => {
                                 e.stopPropagation()
                                 window.open(
-                                  `${window.location.origin}/recommendations/${recommendationId}`,
-                                  '_blank'
+                                  `${window.location.origin}/recommendations/${recommendationId}`
                                 )
                               }}
                             >
@@ -828,8 +820,7 @@ const ClaimsPageClient: React.FC = () => {
                                 onClick={e => {
                                   e.stopPropagation()
                                   window.open(
-                                    `${window.location.origin}/recommendations/${recommendationId}`,
-                                    '_blank'
+                                    `${window.location.origin}/recommendations/${recommendationId}`
                                   )
                                 }}
                               >
