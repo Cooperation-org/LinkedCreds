@@ -494,7 +494,7 @@ const ClaimsPageClient: React.FC = () => {
                           }}
                           onClick={e => {
                             e.stopPropagation()
-                            window.open(`${window.location.origin}/view/${claimId}`)
+                            router.push(`/view/${claimId}`)
                           }}
                         >
                           {getCredentialName(claim)}
@@ -515,7 +515,7 @@ const ClaimsPageClient: React.FC = () => {
                             }}
                             onClick={e => {
                               e.stopPropagation()
-                              window.open(`${window.location.origin}/view/${claimId}`)
+                              router.push(`/view/${claimId}`)
                             }}
                           >
                             {getCredentialName(claim)}
@@ -794,9 +794,7 @@ const ClaimsPageClient: React.FC = () => {
                               }}
                               onClick={e => {
                                 e.stopPropagation()
-                                window.open(
-                                  `${window.location.origin}/recommendations/${recommendationId}`
-                                )
+                                router.push(`/recommendations/${recommendationId}`)
                               }}
                             >
                               {getRecommendationName(recommendation)}
@@ -819,9 +817,7 @@ const ClaimsPageClient: React.FC = () => {
                                 }}
                                 onClick={e => {
                                   e.stopPropagation()
-                                  window.open(
-                                    `${window.location.origin}/recommendations/${recommendationId}`
-                                  )
+                                  router.push(`/recommendations/${recommendationId}`)
                                 }}
                               >
                                 {getRecommendationName(recommendation)}
